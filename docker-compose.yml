@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bloxdeck-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bloxdeck
+      POSTGRES_USER: bloxdeck
+      POSTGRES_PASSWORD: bloxdeck_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - bloxdeck_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bloxdeck -d bloxdeck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  bloxdeck_postgres_data:
+

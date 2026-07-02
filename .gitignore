@@ -1,0 +1,16 @@
+node_modules
+.python-packages
+.venv
+__pycache__
+*.py[cod]
+dist
+build
+.turbo
+.env
+.env.*
+!.env.example
+*.log
+coverage
+backend/prisma/migrations/dev.db
+frontend/src-tauri/target
+frontend/src-tauri/gen
