@@ -5,15 +5,19 @@ import * as React from "react";
 import { cn } from "@/lib/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-deck-300/70 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-950/30 hover:bg-cyan-200",
-        secondary: "border border-white/10 bg-white/10 text-white hover:bg-white/15",
-        ghost: "text-slate-200 hover:bg-white/10",
-        danger: "bg-rose-500 text-white hover:bg-rose-400",
-        lime: "bg-lime-300 text-slate-950 shadow-lg shadow-lime-950/20 hover:bg-lime-200",
+        default:
+          "bg-deck-400 text-white hover:bg-deck-300",
+        secondary:
+          "bg-[var(--panel-bg-hover)] text-white hover:bg-[var(--surface-hover-strong)]",
+        ghost: "text-slate-300 hover:bg-white/[0.065] hover:text-white",
+        danger:
+          "bg-rose-500 text-white hover:bg-rose-400",
+        lime:
+          "bg-emerald-400 text-[#07120d] hover:bg-emerald-300",
       },
       size: {
         default: "h-10 px-4",

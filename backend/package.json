@@ -10,7 +10,6 @@
     "migrate": "node scripts/python.cjs --root -m alembic upgrade head",
     "build": "node scripts/python.cjs -m compileall app scripts",
     "lint": "node scripts/python.cjs -m compileall app scripts",
-    "test": "node scripts/python.cjs -m unittest discover -s tests",
-    "db:seed": "node scripts/python.cjs scripts/seed.py"
+    "test": "node scripts/python.cjs -m unittest discover -s tests"
   }
 }

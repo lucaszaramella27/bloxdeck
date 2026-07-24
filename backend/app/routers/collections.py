@@ -9,7 +9,9 @@ from app.dependencies import DbSession
 from app.dto import collection_to_dto, game_to_dto
 from app.errors import conflict, not_found
 from app.models import Collection, CollectionGame, Favorite, Game, LaunchHistory
+from app.roblox import get_roblox_snapshots_for_places
 from app.schemas import CreateCollectionInput
+from app.subscriptions import require_plan_capacity
 
 router = APIRouter()
 
@@ -67,6 +69,9 @@ def create_collection(body: CreateCollectionInput, db: DbSession) -> dict[str, d
     if existing:
         raise conflict("A collection with this name already exists")
 
+    current_collections = int(db.scalar(select(func.count(Collection.id)).where(Collection.userId == user.id)) or 0)
+    require_plan_capacity(user, "collections", current_collections)
+
     collection = Collection(
         userId=user.id,
         name=body.name,
@@ -82,7 +87,7 @@ def create_collection(body: CreateCollectionInput, db: DbSession) -> dict[str, d
 
 
 @router.get("/collections/{collection_id}")
-def get_collection(collection_id: str, db: DbSession) -> dict[str, dict]:
+async def get_collection(collection_id: str, db: DbSession) -> dict[str, dict]:
     user = ensure_local_user(db)
     collection = db.scalar(select(Collection).where(Collection.id == collection_id, Collection.userId == user.id))
 
@@ -98,6 +103,7 @@ def get_collection(collection_id: str, db: DbSession) -> dict[str, dict]:
     )
     games = [item.game for item in items]
     favorite_ids, launch_counts, last_launches = game_stats(db, user.id, [game.id for game in games])
+    snapshots = await get_roblox_snapshots_for_places([game.placeId for game in games])
     dto = collection_to_dto(collection, len(games))
     dto["games"] = [
         game_to_dto(
@@ -105,6 +111,7 @@ def get_collection(collection_id: str, db: DbSession) -> dict[str, dict]:
             is_favorite=game.id in favorite_ids,
             launch_count=launch_counts.get(game.id, 0),
             last_launched_at=last_launches.get(game.id),  # type: ignore[arg-type]
+            roblox=snapshots.get(game.placeId),
         )
         for game in games
     ]

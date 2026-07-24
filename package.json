@@ -16,7 +16,6 @@
     "db:up": "echo Start PostgreSQL locally and manage it with DBeaver",
     "db:migrate": "corepack pnpm --filter api migrate",
     "db:studio": "echo Use DBeaver for database inspection",
-    "db:seed": "corepack pnpm --filter api db:seed",
     "build": "corepack pnpm --filter api build && corepack pnpm --filter @bloxdeck/shared build && corepack pnpm --filter @bloxdeck/ui build && corepack pnpm --filter desktop build:web",
     "build:desktop": "corepack pnpm --filter desktop build",
     "lint": "corepack pnpm -r lint",

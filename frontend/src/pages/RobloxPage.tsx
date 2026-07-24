@@ -1,5 +1,6 @@
 import {
   Check,
+  Clock3,
   Eye,
   Gamepad2,
   Loader2,
@@ -14,6 +15,7 @@ import {
 import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { LaunchConfirmDialog } from "@/components/games/LaunchConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,8 +27,9 @@ import {
   useRobloxSearch,
 } from "@/hooks/api-hooks";
 import { cn } from "@/lib/cn";
-import { compactNumber, formatDateTime } from "@/lib/format";
+import { compactNumber, formatDateTime, formatTime } from "@/lib/format";
 import { openRobloxGame } from "@/lib/openRoblox";
+import { isLaunchConfirmationEnabled } from "@/lib/preferences";
 import { useUiStore } from "@/store/useUiStore";
 import type { RobloxExperience } from "@/types";
 
@@ -57,11 +60,39 @@ function RobloxExperienceCard({
   isSaving: boolean;
   onSave: () => void;
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
+
+  const confirmLaunch = async () => {
+    setIsLaunching(true);
+
+    try {
+      setConfirmOpen(false);
+      await openRobloxGame(result.placeId);
+    } finally {
+      setIsLaunching(false);
+    }
+  };
+
+  const requestLaunch = () => {
+    if (isLaunchConfirmationEnabled()) {
+      setConfirmOpen(true);
+      return;
+    }
+
+    void confirmLaunch();
+  };
+
   return (
-    <article className="glass-panel overflow-hidden rounded-lg">
+    <article className="glass-panel flex h-full flex-col overflow-hidden rounded-lg">
       <div className="relative aspect-[16/9] bg-slate-950">
         {result.imageUrl ? (
-          <img src={result.imageUrl} alt="" className="h-full w-full object-cover" draggable={false} />
+          <img
+            src={result.imageUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-white/5 text-slate-500">
             <Gamepad2 className="h-8 w-8" />
@@ -79,9 +110,9 @@ function RobloxExperienceCard({
         </div>
       </div>
 
-      <div className="space-y-4 p-4">
+      <div className="flex flex-1 flex-col gap-4 p-4">
         <p className="line-clamp-2 min-h-10 text-sm leading-5 text-slate-400">
-          {result.description || "Sem descricao publica no Roblox."}
+          {result.description || "Sem descrição pública no Roblox."}
         </p>
 
         <div className="grid grid-cols-3 gap-3 text-xs text-slate-500">
@@ -120,20 +151,20 @@ function RobloxExperienceCard({
         </div>
 
         <div className="min-w-0 text-xs text-slate-500">
-          <div className="truncate">Criador: {result.creatorName ?? "Indisponivel"}</div>
+          <div className="truncate">Criador: {result.creatorName ?? "Indisponível"}</div>
           <div className="truncate">Sync: {formatDateTime(result.syncedAt)}</div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button type="button" className="flex-1" onClick={() => void openRobloxGame(result.placeId)}>
+        <div className="mt-auto flex items-center gap-2">
+          <Button type="button" className="flex-1" onClick={requestLaunch}>
             <Play className="h-4 w-4" />
             Jogar
           </Button>
           <Button
             type="button"
             variant={isSaved ? "secondary" : "lime"}
-            title={isSaved ? "Ja esta no deck" : "Salvar no deck"}
-            aria-label={isSaved ? "Ja esta no deck" : "Salvar no deck"}
+            title={isSaved ? "Já está no deck" : "Salvar no deck"}
+            aria-label={isSaved ? "Já está no deck" : "Salvar no deck"}
             size="icon"
             onClick={onSave}
             disabled={isSaved || isSaving}
@@ -142,6 +173,22 @@ function RobloxExperienceCard({
           </Button>
         </div>
       </div>
+      <LaunchConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        game={{
+          id: `roblox-${result.placeId}`,
+          placeId: result.placeId,
+          name: result.name,
+          imageUrl: result.imageUrl,
+          launchCount: 0,
+          lastLaunchedAt: null,
+          roblox: result,
+          collections: [],
+        }}
+        isLaunching={isLaunching}
+        onConfirm={confirmLaunch}
+      />
     </article>
   );
 }
@@ -168,13 +215,15 @@ export function RobloxPage() {
   const isFetching = hasSearch ? searchQuery.isFetching : discover.isFetching;
   const error = hasSearch ? searchQuery.error : discover.error;
   const syncedAt = hasSearch ? searchQuery.data?.pages[0]?.syncedAt : discover.data?.syncedAt;
+  const activeResponse = hasSearch ? searchQuery.data?.pages[0] : discover.data;
+  const rateLimitMessage =
+    activeResponse?.message ?? "Roblox limitou as requisições por alguns instantes. Tenta atualizar de novo daqui a pouco.";
 
   const saveGame = (result: RobloxExperience) => {
     createGame.mutate({
       placeId: result.placeId,
       name: result.name,
       description: result.description || undefined,
-      imageUrl: result.imageUrl,
     });
   };
 
@@ -184,13 +233,19 @@ export function RobloxPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="cyan">Busca Roblox</Badge>
+              <Badge tone="cyan">Catálogo Roblox</Badge>
               <Badge tone="lime">Ao vivo</Badge>
               {syncedAt ? <Badge tone="slate">Sync {formatDateTime(syncedAt)}</Badge> : null}
+              {!hasSearch && discover.data?.rotatesAt ? (
+                <Badge tone="slate" title="A seleção de jogos muda a cada cinco horas">
+                  <Clock3 className="mr-1.5 h-3.5 w-3.5" />
+                  Nova seleção às {formatTime(discover.data.rotatesAt)}
+                </Badge>
+              ) : null}
             </div>
-            <h1 className="mt-4 text-3xl font-bold tracking-normal text-white">Roblox no launcher</h1>
+            <h1 className="mt-4 text-3xl font-bold tracking-normal text-white">Jogos</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              Pesquise experiencias publicas do Roblox, veja estatisticas atuais, jogue ou salve no deck.
+              Pesquise experiências públicas do Roblox, veja estatísticas atuais, jogue ou salve no deck.
             </p>
           </div>
           <Button
@@ -227,7 +282,7 @@ export function RobloxPage() {
                 key={suggestion.query}
                 type="button"
                 onClick={() => setSearch(suggestion.query)}
-                className="h-8 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+                className="h-8 rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-medium text-slate-300 transition"
               >
                 {suggestion.query}
               </button>
@@ -246,7 +301,7 @@ export function RobloxPage() {
                   "h-9 rounded-lg border px-3 text-xs font-semibold transition",
                   sortId === option.id
                     ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-100"
-                    : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white",
+                    : "border-white/10 bg-white/5 text-slate-400",
                 )}
               >
                 {option.label}
@@ -259,6 +314,18 @@ export function RobloxPage() {
       {error ? (
         <div className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
           {error.message}
+        </div>
+      ) : null}
+
+      {activeResponse?.rateLimited ? (
+        <div className="rounded-lg bg-amber-300/[0.10] px-4 py-3 text-sm text-amber-100">
+          {rateLimitMessage}
+        </div>
+      ) : null}
+
+      {createGame.error ? (
+        <div className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+          {createGame.error.message}
         </div>
       ) : null}
 
@@ -300,7 +367,7 @@ export function RobloxPage() {
         <div className="glass-panel rounded-lg py-16 text-center">
           <Gamepad2 className="mx-auto h-9 w-9 text-slate-600" />
           <div className="mt-4 text-sm font-semibold text-white">Nada encontrado</div>
-          <div className="mt-2 text-sm text-slate-500">Tenta outro nome ou usa uma sugestao.</div>
+          <div className="mt-2 text-sm text-slate-500">Tenta outro nome ou usa uma sugestão.</div>
         </div>
       )}
     </div>

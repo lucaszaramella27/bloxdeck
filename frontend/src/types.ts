@@ -1,4 +1,114 @@
 export type CollectionType = "PLAY_LATER" | "WITH_FRIENDS" | "GRIND" | "COMPETITIVE" | "CUSTOM";
+export type SubscriptionPlan = "FREE" | "PREMIUM";
+export type SubscriptionStatus = "INACTIVE" | "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELED";
+
+export type SubscriptionEntitlement = {
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+  effectivePlan: SubscriptionPlan;
+  isPremium: boolean;
+  premiumUntil: string | null;
+  limits: {
+    games: number | null;
+    collections: number | null;
+    historyEntries: number | null;
+    alerts: number | null;
+  };
+  usage: {
+    games: number;
+    collections: number;
+    historyEntries: number;
+    alerts: number;
+  } | null;
+};
+
+export type GameAlertKind = "GAME_UPDATE" | "PLAYER_THRESHOLD";
+
+export type GameAlert = {
+  id: string;
+  gameId: string;
+  kind: GameAlertKind;
+  threshold: number | null;
+  enabled: boolean;
+  lastTriggeredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  game: Game;
+};
+
+export type BloxNotification = {
+  id: string;
+  type: GameAlertKind;
+  title: string;
+  message: string;
+  readAt: string | null;
+  createdAt: string;
+  game: Omit<Game, "isFavorite" | "launchCount" | "lastLaunchedAt"> | null;
+};
+
+export type NotificationCenterData = {
+  items: BloxNotification[];
+  unread: number;
+};
+
+export type CreatorExperience = {
+  universeId: string;
+  placeId: string;
+  name: string;
+  description: string;
+  imageUrl: string | null;
+  playing: number | null;
+  visits: number | null;
+  favoritedCount: number | null;
+  maxPlayers: number | null;
+  genre: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  creator: {
+    id: string;
+    type: string;
+  };
+};
+
+export type CreatorOverview = {
+  creator: {
+    userId: string;
+    username: string | null;
+    displayName: string;
+  };
+  totals: {
+    experiences: number;
+    playing: number;
+    visits: number;
+    favorites: number;
+  };
+  openCloud: {
+    analyticsConfigured: boolean;
+  };
+  experiences: CreatorExperience[];
+};
+
+export type CreatorAnalyticsMetric = {
+  available: boolean;
+  points: Array<{ time: string; value: number }>;
+  latest: number | null;
+  total: number | null;
+  error?: string;
+};
+
+export type CreatorAnalytics = {
+  configured: boolean;
+  available: boolean;
+  reason: string | null;
+  range?: {
+    startAt: string;
+    endAt: string;
+    days: number;
+  };
+  metrics: Partial<
+    Record<"dailyActiveUsers" | "dailyRevenue" | "d1Retention", CreatorAnalyticsMetric>
+  >;
+};
 
 export type RobloxGameSnapshot = {
   placeId: string;
@@ -77,6 +187,10 @@ export type RobloxExploreResponse = {
   nextPageToken: string | null;
   syncedAt: string;
   source: "search" | "discover";
+  rotationId?: number;
+  rotatesAt?: string;
+  rateLimited?: boolean;
+  message?: string;
 };
 
 export type RobloxSuggestion = {
@@ -90,6 +204,8 @@ export type RobloxAutocompleteResponse = {
   query: string;
   suggestions: RobloxSuggestion[];
   syncedAt?: string;
+  rateLimited?: boolean;
+  message?: string;
 };
 
 export type RobloxAvatarAsset = {
@@ -114,6 +230,36 @@ export type RobloxFriend = {
   displayName: string;
   hasVerifiedBadge: boolean;
   avatarUrl: string | null;
+  presence: {
+    type: "offline" | "online" | "in_game" | "studio";
+    isOnline: boolean;
+    isInGame: boolean;
+    lastLocation: string | null;
+    placeId: string | null;
+    rootPlaceId: string | null;
+    gameId: string | null;
+    universeId: string | null;
+    lastOnline: string | null;
+  };
+};
+
+export type RobloxUserSearchResult = {
+  id: string;
+  name: string;
+  displayName: string;
+  hasVerifiedBadge: boolean;
+  previousUsernames: string[];
+  avatarUrl: string | null;
+  presence: RobloxFriend["presence"];
+};
+
+export type RobloxUserSearchResponse = {
+  query: string;
+  results: RobloxUserSearchResult[];
+  nextPageCursor: string | null;
+  rateLimited: boolean;
+  retryAfterSeconds: number | null;
+  syncedAt: string;
 };
 
 export type RobloxSocialOverview = {
@@ -137,6 +283,58 @@ export type RobloxSocialOverview = {
     outfits: number;
     assets: number;
   };
+  syncedAt: string;
+};
+
+export type RobloxPublicUser = {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string | null;
+  createdAt: string | null;
+  isBanned: boolean;
+  hasVerifiedBadge: boolean;
+  externalAppDisplayName: string | null;
+  avatarUrl: string | null;
+};
+
+export type RobloxPublicProfile = {
+  user: RobloxPublicUser;
+  social: RobloxSocialOverview;
+  syncedAt: string;
+};
+
+export type RobloxInventoryItem = {
+  id: string;
+  path: string | null;
+  kind: "asset" | "badge" | "gamePass" | "privateServer" | "unknown";
+  category:
+    | "clothing"
+    | "accessories"
+    | "body"
+    | "animations"
+    | "emotes"
+    | "gear"
+    | "collectibles"
+    | "badge"
+    | "gamePass"
+    | "privateServer"
+    | "other"
+    | "unknown";
+  assetId: number | null;
+  name: string;
+  type: string | null;
+  creatorName: string | null;
+  isLimited: boolean;
+  imageUrl: string | null;
+  createdAt: string | null;
+  isWearable: boolean;
+};
+
+export type RobloxInventoryResponse = {
+  items: RobloxInventoryItem[];
+  nextPageToken: string | null;
+  category: string | null;
   syncedAt: string;
 };
 
@@ -175,6 +373,7 @@ export type Stats = {
     collections: number;
     launches: number;
   };
+  subscription: SubscriptionEntitlement;
   roblox: {
     onlinePlayers: number;
     totalVisits: number;
@@ -185,6 +384,33 @@ export type Stats = {
     syncedAt: string | null;
     trendingGames: Game[];
   };
+  radar: {
+    updatedSinceLastPlay: Game[];
+    gainingNow: Array<{
+      game: Game;
+      playingDelta: number;
+      comparedAt: string | null;
+    }>;
+    capturedAt: string | null;
+  };
+  weekly: {
+    launches: number;
+    previousLaunches: number;
+    launchDelta: number;
+    uniqueGames: number;
+    activeDays: number;
+    topGame: Game | null;
+    topGameLaunches: number;
+  };
+  smartDecks: Array<{
+    id: "continue" | "playing-now" | "updated" | "rediscover";
+    title: string;
+    description: string;
+    gameCount: number;
+    premiumOnly: boolean;
+    locked: boolean;
+    games: Game[];
+  }>;
   recent: Array<{
     id: string;
     createdAt: string;
@@ -211,6 +437,7 @@ export type Profile = {
     createdAt: string;
     updatedAt: string;
   } | null;
+  subscription: SubscriptionEntitlement;
   createdAt: string;
   updatedAt: string;
 };

@@ -37,11 +37,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://bloxdeck:bloxdeck_dev_password@localhost:5432/bloxdeck?schema=public"
     port: int = 3333
     host: str = "0.0.0.0"
-    cors_origin: str = "http://localhost:1420,http://127.0.0.1:1420,tauri://localhost"
+    cors_origin: str = "http://localhost:1420,http://127.0.0.1:1420,http://tauri.localhost,https://tauri.localhost,tauri://localhost"
     roblox_client_id: str | None = None
     roblox_client_secret: str | None = None
-    roblox_redirect_uri: str = "http://localhost:1420/auth/roblox/callback"
-    roblox_scopes: str = "openid profile"
+    roblox_redirect_uri: str = "http://localhost:3333/auth/roblox/callback"
+    roblox_scopes: str = "openid profile user.inventory-item:read"
+    roblox_open_cloud_api_key: str | None = None
 
     @property
     def sqlalchemy_database_url(self) -> str:
@@ -66,4 +67,5 @@ def get_settings() -> Settings:
         roblox_client_secret=values.get("ROBLOX_CLIENT_SECRET") or None,
         roblox_redirect_uri=values.get("ROBLOX_REDIRECT_URI", Settings.model_fields["roblox_redirect_uri"].default),
         roblox_scopes=values.get("ROBLOX_SCOPES", Settings.model_fields["roblox_scopes"].default),
+        roblox_open_cloud_api_key=values.get("ROBLOX_OPEN_CLOUD_API_KEY") or None,
     )

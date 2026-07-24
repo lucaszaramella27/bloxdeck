@@ -8,30 +8,32 @@ from app.dependencies import DbSession
 from app.dto import game_to_dto, iso
 from app.errors import not_found
 from app.models import Favorite, Game
+from app.roblox import RobloxGameSnapshot, get_roblox_snapshot_for_place, get_roblox_snapshots_for_places
 
 router = APIRouter()
 
 
-def favorite_to_dto(favorite: Favorite) -> dict:
+def favorite_to_dto(favorite: Favorite, *, roblox: RobloxGameSnapshot | None = None) -> dict:
     return {
         "id": favorite.id,
         "createdAt": iso(favorite.createdAt),
-        "game": game_to_dto(favorite.game, is_favorite=True),
+        "game": game_to_dto(favorite.game, is_favorite=True, roblox=roblox),
     }
 
 
 @router.get("/favorites")
-def get_favorites(db: DbSession) -> dict[str, list[dict]]:
+async def get_favorites(db: DbSession) -> dict[str, list[dict]]:
     user = ensure_local_user(db)
     favorites = list(
         db.scalars(select(Favorite).where(Favorite.userId == user.id).order_by(Favorite.createdAt.desc())).all()
     )
+    snapshots = await get_roblox_snapshots_for_places([favorite.game.placeId for favorite in favorites])
 
-    return {"data": [favorite_to_dto(favorite) for favorite in favorites]}
+    return {"data": [favorite_to_dto(favorite, roblox=snapshots.get(favorite.game.placeId)) for favorite in favorites]}
 
 
 @router.post("/favorites/{game_id}", status_code=201)
-def favorite_game(game_id: str, db: DbSession) -> dict[str, dict]:
+async def favorite_game(game_id: str, db: DbSession) -> dict[str, dict]:
     user = ensure_local_user(db)
     game = db.get(Game, game_id)
 
@@ -46,7 +48,8 @@ def favorite_game(game_id: str, db: DbSession) -> dict[str, dict]:
         db.commit()
         db.refresh(favorite)
 
-    return {"data": favorite_to_dto(favorite)}
+    roblox = await get_roblox_snapshot_for_place(favorite.game.placeId)
+    return {"data": favorite_to_dto(favorite, roblox=roblox)}
 
 
 @router.delete("/favorites/{game_id}", status_code=204)

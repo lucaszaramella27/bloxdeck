@@ -1,13 +1,25 @@
-import { motion } from "framer-motion";
-import { Eye, Heart, Info, MoreHorizontal, UsersRound } from "lucide-react";
+import { Gamepad2, Heart, Info, MoreHorizontal, UsersRound } from "lucide-react";
 import { Link } from "react-router";
 
 import { LaunchButton } from "@/components/games/LaunchButton";
-import { Badge } from "@/components/ui/badge";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { useToggleFavorite } from "@/hooks/api-hooks";
+import { Tooltip } from "@/components/ui/tooltip";
+import { useRobloxSocial, useToggleFavorite } from "@/hooks/api-hooks";
 import { cn } from "@/lib/cn";
 import { compactNumber } from "@/lib/format";
+import { showToast } from "@/store/useToastStore";
 import type { Game } from "@/types";
 
 type GameCardProps = {
@@ -17,95 +29,147 @@ type GameCardProps = {
 
 export function GameCard({ game, compact = false }: GameCardProps) {
   const favorite = useToggleFavorite();
+  const social = useRobloxSocial();
   const roblox = game.roblox;
+  const friendsHere = (social.data?.friends ?? []).filter(
+    (friend) =>
+      friend.presence.isInGame &&
+      (friend.presence.placeId === game.placeId || friend.presence.rootPlaceId === game.placeId),
+  );
+
+  const toggleFavorite = () => {
+    favorite.mutate(
+      { gameId: game.id, isFavorite: game.isFavorite },
+      {
+        onSuccess: (result) =>
+          showToast(result.isFavorite ? "Adicionado aos favoritos" : "Removido dos favoritos", {
+            description: game.name,
+            tone: "success",
+          }),
+      },
+    );
+  };
+
+  const actions = (
+    <>
+      <DropdownMenuItem asChild>
+        <Link to={`/games/${game.id}`}>
+          <Info className="h-4 w-4" />
+          Abrir detalhes
+        </Link>
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={toggleFavorite}>
+        <Heart className={cn("h-4 w-4", game.isFavorite && "fill-current text-rose-200")} />
+        {game.isFavorite ? "Remover favorito" : "Favoritar"}
+      </DropdownMenuItem>
+    </>
+  );
 
   return (
-    <motion.article
-      layout
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -3 }}
-      transition={{ duration: 0.18 }}
-      className="glass-panel group overflow-hidden rounded-lg"
-    >
-      <div className={cn("relative bg-slate-950", compact ? "h-36" : "h-48")}>
-        {game.imageUrl ? (
-          <img
-            src={game.imageUrl}
-            alt=""
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-            draggable={false}
-          />
-        ) : (
-          <div className="h-full w-full bg-[linear-gradient(135deg,rgba(56,189,248,0.45),rgba(132,204,22,0.25),rgba(251,113,133,0.28))]" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
-        <Button
-          type="button"
-          title={game.isFavorite ? "Remover favorito" : "Favoritar"}
-          aria-label={game.isFavorite ? "Remover favorito" : "Favoritar"}
-          size="iconSm"
-          variant="secondary"
-          className={cn(
-            "absolute right-3 top-3",
-            game.isFavorite && "border-rose-300/40 bg-rose-300/15 text-rose-100",
-          )}
-          onClick={() => favorite.mutate({ gameId: game.id, isFavorite: game.isFavorite })}
-          disabled={favorite.isPending}
-        >
-          <Heart className={cn("h-4 w-4", game.isFavorite && "fill-current")} />
-        </Button>
-        <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3">
-          <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-2">
-              <Badge tone="cyan">#{game.placeId}</Badge>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <article className="game-tile flex h-full flex-col overflow-hidden rounded-lg bg-[var(--panel-bg)]">
+          <div className={cn("relative aspect-video bg-[var(--sidebar-bg)]", compact && "aspect-[16/8]")}>
+            {game.imageUrl ? (
+              <img src={game.imageUrl} alt="" className="h-full w-full object-cover" draggable={false} />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-slate-700">
+                <Gamepad2 className="h-7 w-7" />
+              </div>
+            )}
+            <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/75 to-transparent" />
+            <div className="absolute bottom-2.5 left-3 flex items-center gap-2 text-[11px] font-semibold text-white">
               {roblox?.playing != null ? (
-                <Badge tone="lime">{compactNumber(roblox.playing)} online</Badge>
-              ) : game.launchCount > 0 ? (
-                <Badge tone="lime">{compactNumber(game.launchCount)} launches</Badge>
+                <span className="rounded-md bg-black/55 px-2 py-1 backdrop-blur-sm">
+                  <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-lime-300" />
+                  {compactNumber(roblox.playing)} online
+                </span>
+              ) : null}
+              {friendsHere.length ? (
+                <span className="rounded-md bg-black/55 px-2 py-1 backdrop-blur-sm">
+                  {friendsHere.length} amigo{friendsHere.length > 1 ? "s" : ""}
+                </span>
               ) : null}
             </div>
-            <h3 className="truncate text-xl font-bold tracking-normal text-white">{game.name}</h3>
-          </div>
-          <MoreHorizontal className="h-5 w-5 shrink-0 text-white/55" />
-        </div>
-      </div>
-
-      <div className="space-y-4 p-4">
-        <p className="line-clamp-2 min-h-10 text-sm leading-5 text-slate-400">{game.description}</p>
-
-        <div className="grid grid-cols-2 gap-3 text-xs text-slate-500">
-          <div>
-            <div className="flex items-center gap-1.5 font-medium text-slate-300">
-              <UsersRound className="h-3.5 w-3.5" />
-              Jogando
-            </div>
-            <div className="mt-1 truncate">
-              {roblox?.playing != null ? compactNumber(roblox.playing) : "Sem snapshot"}
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5 font-medium text-slate-300">
-              <Eye className="h-3.5 w-3.5" />
-              Visitas
-            </div>
-            <div className="mt-1 truncate">
-              {roblox?.visits != null
-                ? compactNumber(roblox.visits)
-                : `${compactNumber(game.launchCount)} launches`}
+            <div className="absolute right-2.5 top-2.5">
+              <DropdownMenu>
+                <Tooltip content="Mais ações" side="top">
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="iconSm"
+                      aria-label={`Ações de ${game.name}`}
+                      className="bg-black/55 backdrop-blur-sm hover:bg-black/70"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </Tooltip>
+                <DropdownMenuContent align="end">{actions}</DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <LaunchButton gameId={game.id} placeId={game.placeId} className="flex-1" />
-          <Button asChild variant="secondary" size="icon" title="Detalhes">
-            <Link to={`/games/${game.id}`} aria-label={`Detalhes de ${game.name}`}>
-              <Info className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-      </div>
-    </motion.article>
+          <div className="flex flex-1 flex-col p-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <Link to={`/games/${game.id}`} className="block truncate text-sm font-bold text-white">
+                  {game.name}
+                </Link>
+                <div className="mt-1 truncate text-xs text-slate-600">
+                  {roblox?.creatorName ?? `${compactNumber(game.launchCount)} aberturas`}
+                </div>
+              </div>
+              {friendsHere.length ? (
+                <div className="flex -space-x-1.5">
+                  {friendsHere.slice(0, 3).map((friend) => (
+                    <div
+                      key={friend.id}
+                      title={friend.displayName}
+                      className="h-6 w-6 overflow-hidden rounded-md bg-[var(--surface-overlay)] ring-2 ring-[var(--panel-bg)]"
+                    >
+                      {friend.avatarUrl ? (
+                        <img src={friend.avatarUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <UsersRound className="m-1.5 h-3 w-3 text-slate-500" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-auto flex items-center gap-2 pt-3">
+              <LaunchButton game={game} size="sm" className="flex-1" />
+              <Tooltip content={game.isFavorite ? "Remover favorito" : "Favoritar"} side="top">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="iconSm"
+                  onClick={toggleFavorite}
+                  disabled={favorite.isPending}
+                  aria-label={game.isFavorite ? "Remover favorito" : "Favoritar"}
+                  className={cn(game.isFavorite && "text-rose-200")}
+                >
+                  <Heart className={cn("h-4 w-4", game.isFavorite && "fill-current")} />
+                </Button>
+              </Tooltip>
+            </div>
+          </div>
+        </article>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem asChild>
+          <Link to={`/games/${game.id}`}>
+            <Info className="h-4 w-4" />
+            Abrir detalhes
+          </Link>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={toggleFavorite}>
+          <Heart className={cn("h-4 w-4", game.isFavorite && "fill-current text-rose-200")} />
+          {game.isFavorite ? "Remover favorito" : "Favoritar"}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

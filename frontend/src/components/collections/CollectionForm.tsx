@@ -15,7 +15,7 @@ const initialState = {
   name: "",
   type: "PLAY_LATER" as CollectionType,
   description: "",
-  color: "#38bdf8",
+  color: "#3979e6",
 };
 
 export function CollectionForm({ onCreated }: CollectionFormProps) {
@@ -77,9 +77,9 @@ export function CollectionForm({ onCreated }: CollectionFormProps) {
       </div>
 
       <label className="block space-y-2">
-        <span className="text-xs font-medium text-slate-400">Descricao</span>
+        <span className="text-xs font-medium text-slate-400">Descrição</span>
         <Textarea
-          placeholder="Notas da colecao"
+          placeholder="Notas da coleção"
           value={form.description}
           onChange={(event) =>
             setForm((current) => ({ ...current, description: event.target.value }))
@@ -99,7 +99,7 @@ export function CollectionForm({ onCreated }: CollectionFormProps) {
         ) : (
           <Plus className="h-4 w-4" />
         )}
-        Criar colecao
+        Criar coleção
       </Button>
     </form>
   );

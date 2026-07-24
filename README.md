@@ -66,7 +66,7 @@ Create it in DBeaver if it does not exist yet. The project reads the connection 
 Real Roblox login needs an OAuth 2.0 app in Roblox Creator Dashboard. Configure its redirect URI as:
 
 ```txt
-http://localhost:1420/auth/roblox/callback
+http://localhost:3333/auth/roblox/callback
 ```
 
 Then add these values to `.env` and `backend/.env`:
@@ -74,8 +74,8 @@ Then add these values to `.env` and `backend/.env`:
 ```env
 ROBLOX_CLIENT_ID=your_client_id
 ROBLOX_CLIENT_SECRET=your_client_secret
-ROBLOX_REDIRECT_URI=http://localhost:1420/auth/roblox/callback
-ROBLOX_SCOPES=openid profile
+ROBLOX_REDIRECT_URI=http://localhost:3333/auth/roblox/callback
+ROBLOX_SCOPES=openid profile user.inventory-item:read
 ```
 
 Restart the backend after changing OAuth variables.
@@ -90,11 +90,10 @@ corepack.cmd pnpm install
 corepack.cmd pnpm --filter api exec node scripts/python.cjs -m pip install --target ..\.python-packages -r requirements.txt
 ```
 
-Run Alembic migrations and seed data:
+Run Alembic migrations:
 
 ```powershell
 corepack.cmd pnpm db:migrate
-corepack.cmd pnpm db:seed
 ```
 
 Start the Python API with Uvicorn:
@@ -163,7 +162,6 @@ corepack.cmd pnpm dev:tauri
   "dev:chrome": "corepack pnpm --filter desktop dev:chrome",
   "dev:tauri": "corepack pnpm --filter desktop dev:tauri",
   "db:migrate": "corepack pnpm --filter api migrate",
-  "db:seed": "corepack pnpm --filter api db:seed",
   "db:studio": "echo Use DBeaver for database inspection",
   "build": "build backend, shared packages, and frontend web",
   "build:desktop": "build native Tauri app"
@@ -192,10 +190,20 @@ DELETE /collections/:id/games/:gameId
 
 GET    /history
 POST   /history/:gameId
+DELETE /history
+DELETE /history/:historyId
 
 GET    /stats
 GET    /profile
 PATCH  /profile
+
+GET    /auth/roblox/start
+POST   /auth/roblox/callback
+DELETE /auth/roblox/session
+
+GET    /roblox/social
+GET    /roblox/users/:userId/profile
+GET    /roblox/inventory
 ```
 
 ## Data Flow
@@ -206,17 +214,6 @@ The desktop app never connects directly to PostgreSQL. It talks to the FastAPI b
 `POST /history/:gameId` is called before opening an official Roblox game URL. If the API is
 temporarily unavailable, the launcher still opens the official URL and logs the issue in the
 desktop console.
-
-## Seed Data
-
-The seed creates a local user, default settings, initial collections, favorites, history entries,
-and these starter games:
-
-- Brookhaven
-- Blox Fruits
-- Blade Ball
-- Dress To Impress
-- Pet Simulator
 
 ## Safety Boundaries
 

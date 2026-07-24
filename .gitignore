@@ -10,6 +10,7 @@ build
 .env.*
 !.env.example
 *.log
+*.tsbuildinfo
 coverage
 backend/prisma/migrations/dev.db
 frontend/src-tauri/target

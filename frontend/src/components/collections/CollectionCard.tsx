@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { ArrowRight, Layers3 } from "lucide-react";
 import { Link } from "react-router";
 
@@ -14,13 +13,7 @@ type CollectionCardProps = {
 
 export function CollectionCard({ collection }: CollectionCardProps) {
   return (
-    <motion.article
-      layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -2 }}
-      className="glass-panel rounded-lg p-4"
-    >
+    <article className="glass-panel rounded-lg p-4">
       <div className="mb-5 flex items-start justify-between gap-3">
         <div
           className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10"
@@ -41,13 +34,12 @@ export function CollectionCard({ collection }: CollectionCardProps) {
           <div className="font-medium text-slate-300">{collectionTypeLabels[collection.type]}</div>
           <div className="mt-1 truncate">{formatDateTime(collection.updatedAt)}</div>
         </div>
-        <Button asChild variant="secondary" size="icon" title="Abrir colecao">
+        <Button asChild variant="secondary" size="icon" title="Abrir coleção">
           <Link to={`/collections/${collection.id}`} aria-label={`Abrir ${collection.name}`}>
             <ArrowRight className="h-4 w-4" />
           </Link>
         </Button>
       </div>
-    </motion.article>
+    </article>
   );
 }
-
