@@ -132,7 +132,6 @@ export function Sidebar() {
           <div key={group.label} className={cn(groupIndex > 0 && "mt-5")}>
             {!collapsed ? (
               <div className="deck-nav-group-label mb-2 px-3">
-                <span>{String(groupIndex + 1).padStart(2, "0")}</span>
                 <span>{group.label}</span>
               </div>
             ) : null}

@@ -8,14 +8,13 @@ import {
   Sparkles,
   UsersRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { DashboardIntelligence } from "@/components/dashboard/DashboardIntelligence";
 import { LaunchButton } from "@/components/games/LaunchButton";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useImageAccent } from "@/hooks/use-image-accent";
 import { useProfile, useRobloxSocial, useStats } from "@/hooks/api-hooks";
 import { compactNumber, formatDateTime } from "@/lib/format";
 import type { Game, Stats } from "@/types";
@@ -34,14 +33,8 @@ export function DashboardPage() {
   const stageGames = useMemo(() => collectStageGames(stats.data), [stats.data]);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const selectedGame = stageGames.find((game) => game.id === selectedGameId) ?? stageGames[0];
-  const accent = useImageAccent(selectedGame?.imageUrl);
   const friendsPlaying = (social.data?.friends ?? []).filter((friend) => friend.presence.isInGame);
   const displayName = profile.data?.displayName?.split(" ")[0] ?? profile.data?.robloxUsername ?? "jogador";
-  const dashboardStyle = {
-    "--deck-accent": accent.accent,
-    "--deck-accent-muted": accent.muted,
-    "--deck-accent-soft": accent.soft,
-  } as CSSProperties;
 
   useEffect(() => {
     if (!stageGames.length) {
@@ -55,14 +48,12 @@ export function DashboardPage() {
   }, [selectedGameId, stageGames]);
 
   return (
-    <div className="adaptive-dashboard space-y-5 pb-3" style={dashboardStyle}>
+    <div className="adaptive-dashboard space-y-6 pb-3">
       <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-slate-500">
+          <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
             <span className="h-1.5 w-1.5 rounded-full bg-signal" />
-            Atividade do Deck
-            <span className="text-slate-700">/</span>
-            {stageGames.length.toString().padStart(2, "0")} experiências
+            Seu Deck está pronto
           </div>
           <h1 className="deck-display mt-2 text-3xl font-semibold text-white">
             {greeting()}, {displayName}
@@ -97,12 +88,9 @@ export function DashboardPage() {
 
             <div className="deck-stage-layout">
               <div className="deck-stage-copy">
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-white/70">
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-white/75">
                   <Radio className="h-3.5 w-3.5 text-signal" />
                   Em destaque
-                  <span className="deck-stage-index">
-                    {String(Math.max(0, stageGames.findIndex((game) => game.id === selectedGame.id)) + 1).padStart(2, "0")}
-                  </span>
                 </div>
                 <h2 className="deck-display mt-4 line-clamp-2 max-w-2xl text-3xl font-semibold text-white sm:text-4xl">
                   {selectedGame.name}
@@ -120,14 +108,23 @@ export function DashboardPage() {
                       : "Ainda não iniciado"}
                   </StageFact>
                 </div>
+                <div className="mt-7 flex flex-wrap items-center gap-2.5">
+                  <Button asChild variant="secondary">
+                    <Link to={`/games/${selectedGame.id}`}>
+                      Detalhes
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <LaunchButton game={selectedGame} className="min-w-32" />
+                </div>
               </div>
 
               <div className="deck-stage-selector" role="tablist" aria-label="Seleção do Deck">
-                <div className="mb-2 flex items-center justify-between px-2 text-[9px] font-bold uppercase text-slate-500">
+                <div className="mb-2 flex items-center justify-between px-2 text-[11px] font-semibold text-slate-500">
                   <span>Sua seleção</span>
-                  <span>{stageGames.length.toString().padStart(2, "0")}</span>
+                  <span>{stageGames.length}</span>
                 </div>
-                {stageGames.map((game, index) => {
+                {stageGames.map((game) => {
                   const active = game.id === selectedGame.id;
                   return (
                     <button
@@ -138,7 +135,6 @@ export function DashboardPage() {
                       onClick={() => setSelectedGameId(game.id)}
                       className={`deck-stage-option ${active ? "is-active" : ""}`}
                     >
-                      <span className="deck-stage-option-number">{String(index + 1).padStart(2, "0")}</span>
                       <span className="deck-stage-option-image">
                         {game.imageUrl ? <img src={game.imageUrl} alt="" /> : <Gamepad2 className="h-4 w-4" />}
                       </span>
@@ -156,29 +152,6 @@ export function DashboardPage() {
             </div>
           </section>
 
-          <div className="deck-play-dock">
-            <span className="deck-play-dock-accent" />
-            <div className="deck-play-dock-image">
-              {selectedGame.imageUrl ? <img src={selectedGame.imageUrl} alt="" /> : <Gamepad2 className="h-5 w-5" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold text-white">{selectedGame.name}</div>
-              <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-500">
-                <span>{compactNumber(selectedGame.roblox?.playing ?? 0)} online</span>
-                <span className="text-slate-700">/</span>
-                <span>{friendsPlaying.length} amigos em jogo</span>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button asChild variant="secondary" size="sm">
-                <Link to={`/games/${selectedGame.id}`}>
-                  Detalhes
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <LaunchButton game={selectedGame} className="min-w-28" />
-            </div>
-          </div>
         </>
       ) : (
         <section className="deck-stage deck-stage-empty">
@@ -214,12 +187,12 @@ export function DashboardPage() {
           label="Online agora"
         />
         <TelemetryMetric
-          icon={<Clock3 className="h-4 w-4 text-cyan-200" />}
+          icon={<Clock3 className="h-4 w-4 text-deck-300" />}
           value={stats.data?.weekly.launches ?? 0}
           label="Partidas na semana"
         />
         <TelemetryMetric
-          icon={<Sparkles className="h-4 w-4 text-amber-200" />}
+          icon={<Sparkles className="h-4 w-4 text-deck-300" />}
           value={friendsPlaying.length}
           label="Amigos jogando"
         />
@@ -259,9 +232,9 @@ function TelemetryMetric({ icon, value, label }: { icon: ReactNode; value: numbe
     <div className="deck-telemetry-metric">
       <div className="flex items-center gap-2 text-slate-400">
         {icon}
-        <span className="deck-display text-lg font-semibold text-white">{compactNumber(value)}</span>
+        <span className="deck-display text-xl font-semibold text-white">{compactNumber(value)}</span>
       </div>
-      <div className="mt-1 truncate text-[9px] uppercase text-slate-600">{label}</div>
+      <div className="mt-1 truncate text-[11px] text-slate-600">{label}</div>
     </div>
   );
 }

@@ -10,7 +10,7 @@ from app.dto import iso, plain_game_to_dto
 from app.errors import not_found
 from app.models import Game, LaunchHistory
 from app.roblox import get_roblox_snapshot_for_place, get_roblox_snapshots_for_places
-from app.subscriptions import trim_history_for_plan
+from app.subscriptions import trim_history_for_plan, utc_now_naive
 
 router = APIRouter()
 
@@ -60,8 +60,18 @@ async def record_launch(game_id: str, db: DbSession) -> dict[str, dict]:
     if game is None:
         raise not_found("Game not found")
 
-    history = LaunchHistory(userId=user.id, gameId=game_id)
-    db.add(history)
+    history = db.scalar(
+        select(LaunchHistory)
+        .where(LaunchHistory.userId == user.id, LaunchHistory.gameId == game_id)
+        .order_by(LaunchHistory.createdAt.desc())
+    )
+
+    if history is None:
+        history = LaunchHistory(userId=user.id, gameId=game_id)
+        db.add(history)
+    else:
+        history.createdAt = utc_now_naive()
+
     db.commit()
     db.refresh(history)
     trim_history_for_plan(db, user)

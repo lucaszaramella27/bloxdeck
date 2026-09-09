@@ -37,7 +37,7 @@ export function DashboardIntelligence({ stats, isLoading }: DashboardIntelligenc
     })),
     ...(stats?.radar.updatedSinceLastPlay ?? []).slice(0, 3).map((game) => ({
       id: `updated-${game.id}`,
-      icon: <Sparkles className="h-4 w-4 text-cyan-200" />,
+      icon: <Sparkles className="h-4 w-4 text-deck-300" />,
       imageUrl: game.imageUrl,
       title: `${game.name} foi atualizado`,
       detail: "Mudanças desde sua última partida",
@@ -47,7 +47,7 @@ export function DashboardIntelligence({ stats, isLoading }: DashboardIntelligenc
     })),
     ...(stats?.radar.gainingNow ?? []).slice(0, 3).map((entry) => ({
       id: `gaining-${entry.game.id}`,
-      icon: <TrendingUp className="h-4 w-4 text-ice-200" />,
+      icon: <TrendingUp className="h-4 w-4 text-deck-300" />,
       imageUrl: entry.game.imageUrl,
       title: `${entry.game.name} está crescendo`,
       detail: `${compactNumber(entry.game.roblox?.playing ?? 0)} jogando agora`,
@@ -71,7 +71,7 @@ export function DashboardIntelligence({ stats, isLoading }: DashboardIntelligenc
               <p className="mt-1 text-sm text-slate-500">Atualizações dos seus jogos e amigos</p>
             </div>
             <div className="text-right">
-              <div className="text-[9px] font-bold uppercase text-slate-600">Em jogo</div>
+              <div className="text-[11px] font-semibold text-slate-600">Em jogo</div>
               <div className="deck-display mt-1 text-lg font-semibold text-white">{friendsInGame.length}</div>
             </div>
           </div>
@@ -97,7 +97,7 @@ export function DashboardIntelligence({ stats, isLoading }: DashboardIntelligenc
                     <span className="block truncate text-sm font-semibold text-slate-100">{item.title}</span>
                     <span className="mt-1 block truncate text-xs text-slate-500">{item.detail}</span>
                   </span>
-                  <span className="shrink-0 text-[10px] font-medium text-slate-400">{item.value}</span>
+                  <span className="shrink-0 text-[11px] font-medium text-slate-400">{item.value}</span>
                 </Link>
               ))}
             </div>
@@ -111,10 +111,10 @@ export function DashboardIntelligence({ stats, isLoading }: DashboardIntelligenc
         <aside className="deck-week-panel">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5 text-ice-200" />
+              <CalendarDays className="h-5 w-5 text-deck-300" />
               <h2 className="deck-display text-lg font-semibold text-white">Últimos 7 dias</h2>
             </div>
-            <span className="text-[9px] font-bold uppercase text-slate-600">Resumo</span>
+            <span className="text-[11px] font-semibold text-slate-600">Resumo semanal</span>
           </div>
 
           {isLoading ? (
@@ -134,7 +134,7 @@ export function DashboardIntelligence({ stats, isLoading }: DashboardIntelligenc
                 <WeeklyMetric value={weekly?.launchDelta ?? 0} label="variação" prefix />
               </div>
 
-              <div className="mt-5 text-[9px] font-bold uppercase text-slate-600">Mais aberto</div>
+              <div className="mt-5 text-[11px] font-semibold text-slate-600">Mais aberto</div>
               {weekly?.topGame ? (
                 <Link to={`/games/${weekly.topGame.id}`} className="deck-week-top-game">
                   <span className="deck-week-top-image">
@@ -161,13 +161,13 @@ export function DashboardIntelligence({ stats, isLoading }: DashboardIntelligenc
       <section className="space-y-4">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-[9px] font-bold uppercase text-slate-600">
-              <Sparkles className="h-4 w-4 text-signal" />
+            <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-600">
+              <Sparkles className="h-4 w-4 text-deck-300" />
               Coleções inteligentes
             </div>
             <h2 className="deck-display mt-2 text-xl font-semibold text-white">Sugestões baseadas na sua atividade</h2>
           </div>
-          <span className="hidden text-[10px] text-slate-600 sm:block">Atualização automática</span>
+          <span className="hidden text-[11px] text-slate-600 sm:block">Atualização automática</span>
         </div>
 
         {isLoading ? (
@@ -216,7 +216,7 @@ function WeeklyMetric({ value, label, prefix = false }: { value: number; label: 
       <div className="deck-display text-lg font-semibold text-white">
         {prefix && value > 0 ? "+" : ""}{value}
       </div>
-      <div className="mt-0.5 text-[9px] uppercase text-slate-600">{label}</div>
+      <div className="mt-0.5 text-[11px] text-slate-600">{label}</div>
     </div>
   );
 }

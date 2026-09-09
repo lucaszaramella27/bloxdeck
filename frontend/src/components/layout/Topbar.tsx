@@ -1,19 +1,16 @@
-import { Search, Server, UserRound } from "lucide-react";
+import { Search, UserRound } from "lucide-react";
 import { Link } from "react-router";
 
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { Tooltip } from "@/components/ui/tooltip";
-import { useHealth, useProfile } from "@/hooks/api-hooks";
-import { cn } from "@/lib/cn";
+import { useProfile } from "@/hooks/api-hooks";
 import { useUiStore } from "@/store/useUiStore";
 
 export function Topbar() {
   const search = useUiStore((state) => state.search);
   const setSearchOpen = useUiStore((state) => state.setSearchOpen);
-  const health = useHealth();
   const profile = useProfile();
-  const online = health.data?.ok;
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-4 bg-[var(--surface-topbar)] px-5 shadow-sm shadow-black/20">
@@ -33,18 +30,6 @@ export function Topbar() {
       </button>
 
       <div className="ml-auto flex shrink-0 items-center gap-3">
-        <Tooltip content={online ? "Serviço ativo" : "Serviço indisponível"} side="bottom">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.045]">
-            <Server className={cn("h-4 w-4", online ? "text-lime-200" : "text-amber-200")} />
-            <span
-              className={cn(
-                "absolute ml-5 mt-5 h-1.5 w-1.5 rounded-full ring-2 ring-[var(--panel-bg)]",
-                online ? "bg-lime-300" : "bg-amber-300",
-              )}
-            />
-          </div>
-        </Tooltip>
-
         <NotificationCenter />
 
         <Tooltip content="Abrir perfil" side="bottom">
