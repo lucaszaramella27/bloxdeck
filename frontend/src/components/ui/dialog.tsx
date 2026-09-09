@@ -16,10 +16,10 @@ export function DialogContent({
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in" />
+      <DialogPrimitive.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/65" />
       <DialogPrimitive.Content
         className={cn(
-          "glass-panel fixed left-1/2 top-1/2 z-50 w-[min(560px,calc(100vw-48px))] -translate-x-1/2 -translate-y-1/2 rounded-lg p-5 outline-none",
+          "dialog-content fixed left-1/2 top-1/2 z-50 w-[min(560px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-[var(--panel-bg-strong)] p-5 shadow-xl shadow-black/35 outline-none",
           className,
         )}
         {...props}
@@ -65,4 +65,3 @@ export function DialogDescription({
     <DialogPrimitive.Description className={cn("text-sm text-slate-400", className)} {...props} />
   );
 }
-

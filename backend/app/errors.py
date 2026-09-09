@@ -25,6 +25,10 @@ def conflict(message: str) -> ApiError:
     return ApiError(409, "CONFLICT", message)
 
 
+def premium_required(message: str) -> ApiError:
+    return ApiError(402, "PREMIUM_REQUIRED", message)
+
+
 async def api_error_handler(_request: Request, error: ApiError) -> JSONResponse:
     return JSONResponse(
         status_code=error.status_code,

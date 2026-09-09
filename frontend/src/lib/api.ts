@@ -2,13 +2,21 @@ import { API_URL } from "@/config";
 import type {
   Collection,
   CollectionDetail,
+  CreatorAnalytics,
+  CreatorOverview,
   Favorite,
   Game,
+  GameAlert,
+  GameAlertKind,
   HistoryEntry,
+  NotificationCenterData,
   Profile,
   RobloxAutocompleteResponse,
   RobloxExploreResponse,
+  RobloxInventoryResponse,
+  RobloxPublicProfile,
   RobloxSocialOverview,
+  RobloxUserSearchResponse,
   Stats,
 } from "@/types";
 
@@ -25,17 +33,36 @@ function isApiErrorPayload(payload: unknown): payload is ApiErrorPayload {
   return typeof payload === "object" && payload !== null && "error" in payload;
 }
 
-async function apiRequest<T>(path: string, options: RequestInit = {}) {
+async function apiRequest<T>(path: string, options: RequestInit = {}, timeoutMs = 30_000) {
   const headers = new Headers(options.headers);
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
 
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("A conexão demorou demais. Verifique o serviço do BloxDeck e tente novamente.");
+    }
+
+    if (error instanceof TypeError) {
+      throw new Error("Não foi possível conectar ao serviço do BloxDeck.");
+    }
+
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   if (response.status === 204) {
     return undefined as T;
@@ -67,7 +94,6 @@ export const api = {
     placeId: string;
     name?: string;
     description?: string;
-    imageUrl?: string | null;
   }) {
     const response = await apiRequest<ApiEnvelope<Game>>("/games", {
       method: "POST",
@@ -77,7 +103,7 @@ export const api = {
   },
   async updateGame(
     id: string,
-    input: Partial<{ placeId: string; name: string; description: string; imageUrl: string | null }>,
+    input: Partial<{ placeId: string; name: string; description: string }>,
   ) {
     const response = await apiRequest<ApiEnvelope<Game>>(`/games/${id}`, {
       method: "PATCH",
@@ -141,14 +167,64 @@ export const api = {
     });
     return response.data;
   },
+  async deleteHistoryEntry(historyId: string) {
+    await apiRequest<void>(`/history/${historyId}`, { method: "DELETE" });
+  },
+  async clearHistory() {
+    await apiRequest<void>("/history", { method: "DELETE" });
+  },
   async getStats() {
     const response = await apiRequest<ApiEnvelope<Stats>>("/stats");
     return response.data;
   },
+  async getCreatorOverview() {
+    const response = await apiRequest<ApiEnvelope<CreatorOverview>>("/creator/overview");
+    return response.data;
+  },
+  async getCreatorAnalytics(universeId: string, days = 30) {
+    const response = await apiRequest<ApiEnvelope<CreatorAnalytics>>(
+      `/creator/experiences/${encodeURIComponent(universeId)}/analytics?days=${days}`,
+      {},
+      60_000,
+    );
+    return response.data;
+  },
+  async getAlerts(gameId?: string) {
+    const params = gameId ? `?gameId=${encodeURIComponent(gameId)}` : "";
+    const response = await apiRequest<ApiEnvelope<GameAlert[]>>(`/alerts${params}`);
+    return response.data;
+  },
+  async createAlert(input: { gameId: string; kind: GameAlertKind; threshold?: number }) {
+    const response = await apiRequest<ApiEnvelope<GameAlert>>("/alerts", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return response.data;
+  },
+  async updateAlert(alertId: string, enabled: boolean) {
+    const response = await apiRequest<ApiEnvelope<GameAlert>>(`/alerts/${alertId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    });
+    return response.data;
+  },
+  async deleteAlert(alertId: string) {
+    await apiRequest<void>(`/alerts/${alertId}`, { method: "DELETE" });
+  },
+  async getNotifications() {
+    const response = await apiRequest<ApiEnvelope<NotificationCenterData>>("/notifications");
+    return response.data;
+  },
+  async readNotification(notificationId: string) {
+    await apiRequest(`/notifications/${notificationId}/read`, { method: "PATCH" });
+  },
+  async readAllNotifications() {
+    await apiRequest<void>("/notifications/read-all", { method: "PATCH" });
+  },
   async searchRobloxExperiences(input: { query: string; cursor?: string | null; limit?: number }) {
     const params = new URLSearchParams({
       q: input.query,
-      limit: String(input.limit ?? 40),
+      limit: String(input.limit ?? 30),
     });
 
     if (input.cursor) {
@@ -161,7 +237,7 @@ export const api = {
     return response.data;
   },
   async getRobloxDiscover(sortId = "top-playing-now") {
-    const params = new URLSearchParams({ sortId, limit: "50" });
+    const params = new URLSearchParams({ sortId, limit: "30" });
     const response = await apiRequest<ApiEnvelope<RobloxExploreResponse>>(
       `/roblox/discover?${params.toString()}`,
     );
@@ -177,6 +253,40 @@ export const api = {
     const response = await apiRequest<ApiEnvelope<RobloxSocialOverview>>("/roblox/social");
     return response.data;
   },
+  async searchRobloxUsers(input: { query: string; cursor?: string | null }) {
+    const params = new URLSearchParams({ q: input.query });
+
+    if (input.cursor) {
+      params.set("cursor", input.cursor);
+    }
+
+    const response = await apiRequest<ApiEnvelope<RobloxUserSearchResponse>>(
+      `/roblox/users/search?${params.toString()}`,
+    );
+    return response.data;
+  },
+  async getRobloxUserProfile(userId: string) {
+    const response = await apiRequest<ApiEnvelope<RobloxPublicProfile>>(
+      `/roblox/users/${encodeURIComponent(userId)}/profile`,
+    );
+    return response.data;
+  },
+  async getRobloxInventory(input: { category?: string; cursor?: string | null; limit?: number } = {}) {
+    const params = new URLSearchParams({ limit: String(input.limit ?? 24) });
+
+    if (input.category) {
+      params.set("category", input.category);
+    }
+
+    if (input.cursor) {
+      params.set("cursor", input.cursor);
+    }
+
+    const response = await apiRequest<ApiEnvelope<RobloxInventoryResponse>>(
+      `/roblox/inventory?${params.toString()}`,
+    );
+    return response.data;
+  },
   async getProfile() {
     const response = await apiRequest<ApiEnvelope<Profile>>("/profile");
     return response.data;
@@ -189,6 +299,12 @@ export const api = {
     const response = await apiRequest<ApiEnvelope<Profile>>("/auth/roblox/callback", {
       method: "POST",
       body: JSON.stringify(input),
+    });
+    return response.data;
+  },
+  async disconnectRobloxAuth() {
+    const response = await apiRequest<ApiEnvelope<Profile>>("/auth/roblox/session", {
+      method: "DELETE",
     });
     return response.data;
   },

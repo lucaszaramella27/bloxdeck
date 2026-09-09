@@ -5,14 +5,25 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
     {
       "identifier": "opener:allow-open-url",
       "allow": [
         {
+          "url": "roblox://*"
+        },
+        {
           "url": "https://www.roblox.com/games/*"
+        },
+        {
+          "url": "https://create.roblox.com/*"
+        },
+        {
+          "url": "https://apis.roblox.com/*"
         }
       ]
     }
   ]
 }
-

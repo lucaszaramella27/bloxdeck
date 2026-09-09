@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 import os
-import sys
 from logging.config import fileConfig
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-LOCAL_PACKAGES_DIR = ROOT_DIR / ".python-packages"
-
-if LOCAL_PACKAGES_DIR.exists():
-    sys.path.insert(0, str(LOCAL_PACKAGES_DIR))
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool

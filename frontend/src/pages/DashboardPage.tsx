@@ -1,193 +1,240 @@
-import { motion } from "framer-motion";
-import { Clock3, Eye, Gamepad2, Heart, RefreshCw, TrendingUp, UsersRound } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  Clock3,
+  Gamepad2,
+  Radio,
+  RefreshCw,
+  Sparkles,
+  UsersRound,
+} from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
-import { GameCard } from "@/components/games/GameCard";
-import { Badge } from "@/components/ui/badge";
+import { DashboardIntelligence } from "@/components/dashboard/DashboardIntelligence";
+import { LaunchButton } from "@/components/games/LaunchButton";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGames, useStats } from "@/hooks/api-hooks";
+import { useProfile, useRobloxSocial, useStats } from "@/hooks/api-hooks";
 import { compactNumber, formatDateTime } from "@/lib/format";
+import type { Game, Stats } from "@/types";
+
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Bom dia";
+  if (hour < 18) return "Boa tarde";
+  return "Boa noite";
+}
 
 export function DashboardPage() {
+  const profile = useProfile();
   const stats = useStats();
-  const games = useGames();
-  const live = stats.data?.roblox;
-  const featuredGames = live?.trendingGames.length ? live.trendingGames.slice(0, 3) : (games.data?.slice(0, 3) ?? []);
-  const metrics = [
-    {
-      label: "Online agora",
-      value: live?.onlinePlayers ?? 0,
-      icon: UsersRound,
-      tone: "text-lime-200",
-      helper: `${live?.snapshots ?? 0}/${live?.trackedGames ?? 0} snapshots`,
-    },
-    {
-      label: "Visitas Roblox",
-      value: live?.totalVisits ?? 0,
-      icon: Eye,
-      tone: "text-cyan-200",
-      helper: "Soma dos jogos salvos",
-    },
-    {
-      label: "Favoritos Roblox",
-      value: live?.totalFavorites ?? 0,
-      icon: Heart,
-      tone: "text-rose-200",
-      helper: `${stats.data?.totals.favorites ?? 0} favoritos no deck`,
-    },
-    {
-      label: "Jogos monitorados",
-      value: live?.trackedGames ?? stats.data?.totals.games ?? 0,
-      icon: Gamepad2,
-      tone: "text-amber-200",
-      helper: `${stats.data?.totals.launches ?? 0} launches locais`,
-    },
-  ];
+  const social = useRobloxSocial();
+  const stageGames = useMemo(() => collectStageGames(stats.data), [stats.data]);
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const selectedGame = stageGames.find((game) => game.id === selectedGameId) ?? stageGames[0];
+  const friendsPlaying = (social.data?.friends ?? []).filter((friend) => friend.presence.isInGame);
+  const displayName = profile.data?.displayName?.split(" ")[0] ?? profile.data?.robloxUsername ?? "jogador";
+
+  useEffect(() => {
+    if (!stageGames.length) {
+      setSelectedGameId(null);
+      return;
+    }
+
+    if (!selectedGameId || !stageGames.some((game) => game.id === selectedGameId)) {
+      setSelectedGameId(stageGames[0].id);
+    }
+  }, [selectedGameId, stageGames]);
 
   return (
-    <div className="space-y-6">
-      <section className="glass-panel overflow-hidden rounded-lg p-6">
-        <div className="flex items-start justify-between gap-6">
-          <div className="max-w-3xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="cyan">Roblox ao vivo</Badge>
-              <Badge tone={live?.unavailable ? "amber" : "lime"}>
-                {live?.syncedAt ? `Sync ${formatDateTime(live.syncedAt)}` : "Aguardando sync"}
-              </Badge>
-            </div>
-            <h1 className="mt-4 text-4xl font-bold tracking-normal text-white">Painel BloxDeck</h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-400">
-              Estatisticas publicas do Roblox atualizadas automaticamente para os jogos salvos no deck.
-            </p>
+    <div className="adaptive-dashboard space-y-6 pb-3">
+      <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+            <span className="h-1.5 w-1.5 rounded-full bg-signal" />
+            Seu Deck está pronto
           </div>
-          <div className="flex gap-3">
-            <Button type="button" variant="secondary" onClick={() => void stats.refetch()}>
-              <RefreshCw className={`h-4 w-4 ${stats.isFetching ? "animate-spin" : ""}`} />
-              Atualizar
-            </Button>
-            <Button asChild variant="secondary">
-              <Link to="/collections">Colecoes</Link>
-            </Button>
-            <Button asChild>
-              <Link to="/games">Jogos</Link>
-            </Button>
-            <Button asChild>
-              <Link to="/login">Entrar com Roblox</Link>
-            </Button>
-          </div>
+          <h1 className="deck-display mt-2 text-3xl font-semibold text-white">
+            {greeting()}, {displayName}
+          </h1>
+          <p className="mt-1.5 text-sm text-slate-500">Continue de onde parou ou escolha outra experiência</p>
         </div>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => void Promise.all([stats.refetch(), social.refetch()])}
+        >
+          <RefreshCw className={`h-4 w-4 ${stats.isFetching || social.isFetching ? "animate-spin" : ""}`} />
+          Sincronizar
+        </Button>
+      </header>
 
-        <div className="mt-8 grid grid-cols-4 gap-4">
-          {metrics.map((metric, index) => {
-            const Icon = metric.icon;
+      {stats.isLoading ? (
+        <Skeleton className="h-[370px] w-full" />
+      ) : selectedGame ? (
+        <>
+          <section className="deck-stage" aria-label={`Em foco: ${selectedGame.name}`}>
+            {selectedGame.imageUrl ? (
+              <img
+                key={selectedGame.id}
+                src={selectedGame.imageUrl}
+                alt=""
+                className="deck-stage-media"
+              />
+            ) : null}
+            <div className="deck-stage-shade" />
+            <span className="deck-stage-accent" />
 
-            return (
-              <motion.div
-                key={metric.label}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.04 }}
-                className="rounded-lg border border-white/10 bg-white/5 p-4"
-              >
-                <div className="mb-4 flex items-center justify-between">
-                  <Icon className={`h-5 w-5 ${metric.tone}`} />
-                  <TrendingUp className="h-4 w-4 text-slate-600" />
+            <div className="deck-stage-layout">
+              <div className="deck-stage-copy">
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-white/75">
+                  <Radio className="h-3.5 w-3.5 text-signal" />
+                  Em destaque
                 </div>
-                {stats.isLoading ? (
-                  <Skeleton className="h-8 w-20" />
-                ) : (
-                  <div className="text-3xl font-bold tracking-normal text-white">
-                    {compactNumber(metric.value)}
-                  </div>
-                )}
-                <div className="mt-1 text-sm text-slate-500">{metric.label}</div>
-                <div className="mt-3 truncate text-xs text-slate-600">{metric.helper}</div>
-              </motion.div>
-            );
-          })}
-        </div>
-      </section>
+                <h2 className="deck-display mt-4 line-clamp-2 max-w-2xl text-3xl font-semibold text-white sm:text-4xl">
+                  {selectedGame.name}
+                </h2>
+                <p className="mt-3 line-clamp-2 max-w-xl text-sm leading-6 text-slate-300/80">
+                  {selectedGame.description || "Experiência Roblox pronta para abrir pelo seu Deck"}
+                </p>
+                <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-300">
+                  <StageFact icon={<UsersRound className="h-4 w-4" />}>
+                    {compactNumber(selectedGame.roblox?.playing ?? 0)} online
+                  </StageFact>
+                  <StageFact icon={<Clock3 className="h-4 w-4" />}>
+                    {selectedGame.lastLaunchedAt
+                      ? `Última partida ${formatDateTime(selectedGame.lastLaunchedAt)}`
+                      : "Ainda não iniciado"}
+                  </StageFact>
+                </div>
+                <div className="mt-7 flex flex-wrap items-center gap-2.5">
+                  <Button asChild variant="secondary">
+                    <Link to={`/games/${selectedGame.id}`}>
+                      Detalhes
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <LaunchButton game={selectedGame} className="min-w-32" />
+                </div>
+              </div>
 
-      {stats.error ? (
-        <div className="rounded-lg border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
-          {stats.error.message}
-        </div>
-      ) : null}
+              <div className="deck-stage-selector" role="tablist" aria-label="Seleção do Deck">
+                <div className="mb-2 flex items-center justify-between px-2 text-[11px] font-semibold text-slate-500">
+                  <span>Sua seleção</span>
+                  <span>{stageGames.length}</span>
+                </div>
+                {stageGames.map((game) => {
+                  const active = game.id === selectedGame.id;
+                  return (
+                    <button
+                      key={game.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setSelectedGameId(game.id)}
+                      className={`deck-stage-option ${active ? "is-active" : ""}`}
+                    >
+                      <span className="deck-stage-option-image">
+                        {game.imageUrl ? <img src={game.imageUrl} alt="" /> : <Gamepad2 className="h-4 w-4" />}
+                      </span>
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="block truncate text-xs font-semibold text-slate-100">{game.name}</span>
+                        <span className="mt-0.5 block truncate text-[9px] text-slate-500">
+                          {compactNumber(game.roblox?.playing ?? 0)} online
+                        </span>
+                      </span>
+                      {active ? <span className="deck-stage-option-state" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
 
-      <section className="grid grid-cols-[1fr_360px] gap-6">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold tracking-normal text-white">Mais movimentados</h2>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/games">Ver todos</Link>
+        </>
+      ) : (
+        <section className="deck-stage deck-stage-empty">
+          <div>
+            <div className="text-[10px] font-bold uppercase text-slate-500">Deck vazio</div>
+            <h2 className="deck-display mt-3 text-3xl font-semibold text-white">Escolha sua primeira camada</h2>
+            <p className="mt-2 text-sm text-slate-500">Salve uma experiência para acompanhar e iniciar rapidamente</p>
+            <Button asChild className="mt-5">
+              <Link to="/games">Explorar jogos</Link>
             </Button>
           </div>
-          {stats.isLoading && games.isLoading ? (
-            <div className="grid grid-cols-3 gap-4">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <Skeleton key={index} className="h-[360px]" />
-              ))}
-            </div>
-          ) : featuredGames.length ? (
-            <div className="grid grid-cols-3 gap-4">
-              {featuredGames.map((game) => (
-                <GameCard key={game.id} game={game} compact />
-              ))}
-            </div>
-          ) : (
-            <div className="glass-panel rounded-lg py-16 text-center text-sm text-slate-500">
-              Salva um Place ID em Jogos pra começar a monitorar.
-            </div>
-          )}
-        </div>
+        </section>
+      )}
 
-        <aside className="space-y-4">
-          <h2 className="text-xl font-bold tracking-normal text-white">Recentes</h2>
-          <div className="glass-panel rounded-lg p-3">
-            {stats.isLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Skeleton key={index} className="h-16" />
-                ))}
-              </div>
-            ) : stats.data?.recent.length ? (
-              <div className="space-y-2">
-                {stats.data.recent.map((entry) => (
-                  <Link
-                    key={entry.id}
-                    to={`/games/${entry.game.id}`}
-                    className="flex items-center gap-3 rounded-lg p-2 transition hover:bg-white/10"
-                  >
-                    <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-cyan-300/10">
-                      {entry.game.imageUrl ? (
-                        <img src={entry.game.imageUrl} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-cyan-100">
-                          <Clock3 className="h-4 w-4" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-white">{entry.game.name}</div>
-                      <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500">
-                        <span className="truncate">{formatDateTime(entry.createdAt)}</span>
-                        {entry.game.roblox?.playing != null ? (
-                          <span className="shrink-0 text-lime-200">
-                            {compactNumber(entry.game.roblox.playing)} online
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="py-10 text-center text-sm text-slate-500">Sem launches ainda.</div>
-            )}
+      <section className="deck-telemetry" aria-label="Resumo do Deck">
+        <div className="deck-telemetry-label">
+          <Activity className="h-4 w-4 text-signal" />
+          <div>
+            <div className="text-[9px] font-bold uppercase text-slate-500">Resumo</div>
+            <div className="mt-0.5 text-[10px] text-slate-700">
+              {formatDateTime(stats.data?.roblox.syncedAt)}
+            </div>
           </div>
-        </aside>
+        </div>
+        <TelemetryMetric
+          icon={<Gamepad2 className="h-4 w-4" />}
+          value={stats.data?.totals.games ?? 0}
+          label="Jogos no Deck"
+        />
+        <TelemetryMetric
+          icon={<UsersRound className="h-4 w-4 text-lime-200" />}
+          value={stats.data?.roblox.onlinePlayers ?? 0}
+          label="Online agora"
+        />
+        <TelemetryMetric
+          icon={<Clock3 className="h-4 w-4 text-deck-300" />}
+          value={stats.data?.weekly.launches ?? 0}
+          label="Partidas na semana"
+        />
+        <TelemetryMetric
+          icon={<Sparkles className="h-4 w-4 text-deck-300" />}
+          value={friendsPlaying.length}
+          label="Amigos jogando"
+        />
       </section>
+
+      <DashboardIntelligence stats={stats.data} isLoading={stats.isLoading} />
+    </div>
+  );
+}
+
+function collectStageGames(stats?: Stats) {
+  if (!stats) return [];
+
+  const candidates = [
+    ...(stats.smartDecks.find((deck) => deck.id === "continue")?.games ?? []),
+    ...stats.smartDecks.flatMap((deck) => deck.games),
+    ...stats.roblox.trendingGames,
+  ];
+  const unique = new Map<string, Game>();
+  for (const game of candidates) {
+    if (!unique.has(game.id)) unique.set(game.id, game);
+  }
+  return Array.from(unique.values()).slice(0, 4);
+}
+
+function StageFact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="text-[var(--deck-accent)]">{icon}</span>
+      {children}
+    </span>
+  );
+}
+
+function TelemetryMetric({ icon, value, label }: { icon: ReactNode; value: number; label: string }) {
+  return (
+    <div className="deck-telemetry-metric">
+      <div className="flex items-center gap-2 text-slate-400">
+        {icon}
+        <span className="deck-display text-xl font-semibold text-white">{compactNumber(value)}</span>
+      </div>
+      <div className="mt-1 truncate text-[11px] text-slate-600">{label}</div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Gamepad2, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
@@ -52,7 +52,7 @@ export function CollectionDetailPage() {
     return (
       <EmptyState
         icon={ArrowLeft}
-        title="Colecao nao encontrada"
+        title="Coleção não encontrada"
         action={
           <Button asChild>
             <Link to="/collections">Voltar</Link>
@@ -82,7 +82,7 @@ export function CollectionDetailPage() {
               {collection.data.name}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              {collection.data.description || "Colecao local"}
+              {collection.data.description || "Coleção local"}
             </p>
           </div>
 
@@ -123,7 +123,9 @@ export function CollectionDetailPage() {
                 {game.imageUrl ? (
                   <img src={game.imageUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="h-full w-full bg-[linear-gradient(135deg,rgba(56,189,248,0.5),rgba(251,113,133,0.28))]" />
+                  <div className="flex h-full w-full items-center justify-center bg-white/[0.04] text-slate-600">
+                    <Gamepad2 className="h-8 w-8" />
+                  </div>
                 )}
               </div>
               <div className="flex min-w-0 flex-1 flex-col p-4">
@@ -147,7 +149,10 @@ export function CollectionDetailPage() {
                   {game.description}
                 </p>
                 <div className="mt-4 flex gap-2">
-                  <LaunchButton gameId={game.id} placeId={game.placeId} className="flex-1" />
+                  <LaunchButton
+                    game={game}
+                    className="flex-1"
+                  />
                   <Button asChild variant="secondary">
                     <Link to={`/games/${game.id}`}>Detalhes</Link>
                   </Button>
@@ -157,7 +162,7 @@ export function CollectionDetailPage() {
           ))}
         </div>
       ) : (
-        <EmptyState icon={Plus} title="Colecao vazia" description="Adicione jogos pelo seletor acima." />
+        <EmptyState icon={Plus} title="Coleção vazia" description="Adicione jogos pelo seletor acima." />
       )}
     </div>
   );

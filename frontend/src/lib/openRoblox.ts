@@ -1,4 +1,6 @@
-import { buildRobloxGameUrl } from "@/lib/roblox";
+import { buildRobloxGameDeepLink } from "@/lib/roblox";
+import { shouldMinimizeOnLaunch } from "@/lib/preferences";
+import { runWindowAction } from "@/lib/window-mode";
 
 declare global {
   interface Window {
@@ -7,14 +9,16 @@ declare global {
 }
 
 export async function openRobloxGame(placeId: string) {
-  const url = buildRobloxGameUrl(placeId);
+  const deepLink = buildRobloxGameDeepLink(placeId);
 
   if (window.__TAURI_INTERNALS__) {
     const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(url);
+    await openUrl(deepLink);
+    if (shouldMinimizeOnLaunch()) {
+      await runWindowAction("minimize");
+    }
     return;
   }
 
-  window.open(url, "_blank", "noopener,noreferrer");
+  window.location.href = deepLink;
 }
-

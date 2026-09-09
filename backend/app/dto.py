@@ -11,6 +11,10 @@ def iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
+def roblox_image_url(roblox: RobloxGameSnapshot | None) -> str | None:
+    return roblox.imageUrl if roblox and roblox.imageUrl else None
+
+
 def settings_to_dto(settings: AppSettings | None) -> dict[str, Any] | None:
     if settings is None:
         return None
@@ -38,7 +42,7 @@ def game_to_dto(
         "placeId": game.placeId,
         "name": roblox.name if roblox else game.name,
         "description": roblox.description if roblox else game.description,
-        "imageUrl": roblox.imageUrl if roblox else game.imageUrl,
+        "imageUrl": roblox_image_url(roblox),
         "isFavorite": is_favorite,
         "launchCount": launch_count,
         "lastLaunchedAt": iso(last_launched_at),
@@ -54,7 +58,7 @@ def plain_game_to_dto(game: Game, *, roblox: RobloxGameSnapshot | None = None) -
         "placeId": game.placeId,
         "name": roblox.name if roblox else game.name,
         "description": roblox.description if roblox else game.description,
-        "imageUrl": roblox.imageUrl if roblox else game.imageUrl,
+        "imageUrl": roblox_image_url(roblox),
         "roblox": roblox.to_dict() if roblox else None,
         "createdAt": iso(game.createdAt),
         "updatedAt": iso(game.updatedAt),

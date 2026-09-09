@@ -13,6 +13,7 @@ from app.errors import bad_request, conflict, not_found
 from app.models import CollectionGame, Favorite, Game, LaunchHistory
 from app.roblox import get_roblox_snapshot_for_place, get_roblox_snapshots_for_places
 from app.schemas import CreateGameInput, UpdateGameInput
+from app.subscriptions import require_plan_capacity
 
 router = APIRouter()
 
@@ -40,13 +41,13 @@ def create_game_data(body: CreateGameInput, roblox_name: str | None, roblox_desc
     description = body.description or roblox_description
 
     if not name or not description:
-        raise bad_request("Nao consegui buscar esse Place ID no Roblox. Confira o ID ou informe os dados manualmente.")
+        raise bad_request("Não consegui buscar esse Place ID no Roblox. Confira o ID ou informe os dados manualmente.")
 
     return {
         "placeId": body.placeId,
         "name": name,
         "description": description,
-        "imageUrl": str(body.imageUrl) if body.imageUrl else None,
+        "imageUrl": None,
     }
 
 
@@ -83,16 +84,16 @@ async def get_games(db: DbSession, q: str | None = Query(default=None)) -> dict[
 
 @router.post("/games", status_code=201)
 async def create_game(body: CreateGameInput, db: DbSession) -> dict[str, dict]:
-    ensure_local_user(db)
+    user = ensure_local_user(db)
 
     if db.scalar(select(Game).where(Game.placeId == body.placeId)):
         raise conflict("A game with this placeId already exists")
 
+    current_games = int(db.scalar(select(func.count(Game.id))) or 0)
+    require_plan_capacity(user, "games", current_games)
+
     roblox = await get_roblox_snapshot_for_place(body.placeId)
     data = create_game_data(body, roblox.name if roblox else None, roblox.description if roblox else None)
-
-    if roblox and body.imageUrl is None:
-        data["imageUrl"] = roblox.imageUrl
 
     game = Game(**data)
     db.add(game)
@@ -145,9 +146,6 @@ async def update_game(game_id: str, body: UpdateGameInput, db: DbSession) -> dic
         raise not_found("Game not found")
 
     update_data = body.model_dump(exclude_unset=True)
-
-    if "imageUrl" in update_data and update_data["imageUrl"] is not None:
-        update_data["imageUrl"] = str(update_data["imageUrl"])
 
     for key, value in update_data.items():
         setattr(game, key, value)

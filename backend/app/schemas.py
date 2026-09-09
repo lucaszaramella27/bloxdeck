@@ -3,10 +3,11 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 CollectionKind = Literal["PLAY_LATER", "WITH_FRIENDS", "GRIND", "COMPETITIVE", "CUSTOM"]
 ThemePreference = Literal["DARK", "SYSTEM"]
+GameAlertKind = Literal["GAME_UPDATE", "PLAYER_THRESHOLD"]
 
 
 def empty_to_none(value: str | None) -> str | None:
@@ -25,7 +26,6 @@ class CreateGameInput(ApiModel):
     placeId: str
     name: str | None = Field(default=None, min_length=2, max_length=120)
     description: str | None = Field(default=None, min_length=3, max_length=4000)
-    imageUrl: HttpUrl | None = None
 
     @field_validator("placeId")
     @classmethod
@@ -47,7 +47,6 @@ class UpdateGameInput(ApiModel):
     placeId: str | None = None
     name: str | None = Field(default=None, min_length=2, max_length=120)
     description: str | None = Field(default=None, min_length=3, max_length=4000)
-    imageUrl: HttpUrl | None = None
 
     @field_validator("placeId")
     @classmethod
@@ -114,3 +113,23 @@ class UpdateProfileInput(ApiModel):
             raise ValueError("accentColor must be a hex color")
 
         return value
+
+
+class CreateGameAlertInput(ApiModel):
+    gameId: str = Field(min_length=1)
+    kind: GameAlertKind
+    threshold: int | None = Field(default=None, ge=1, le=10_000_000)
+
+    @model_validator(mode="after")
+    def validate_threshold(self) -> "CreateGameAlertInput":
+        if self.kind == "PLAYER_THRESHOLD" and self.threshold is None:
+            raise ValueError("threshold is required for player alerts")
+
+        if self.kind == "GAME_UPDATE":
+            self.threshold = None
+
+        return self
+
+
+class UpdateGameAlertInput(ApiModel):
+    enabled: bool

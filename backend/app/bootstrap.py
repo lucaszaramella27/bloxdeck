@@ -21,7 +21,7 @@ def ensure_local_user(db: Session) -> User:
     changed = False
 
     if user is None:
-        user = User(handle="local-player", displayName="Local Player")
+        user = User(handle="local-player", displayName="Jogador Roblox")
         db.add(user)
         db.flush()
         changed = True

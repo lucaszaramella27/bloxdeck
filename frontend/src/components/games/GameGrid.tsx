@@ -17,13 +17,12 @@ export function GameGrid({ games, isLoading, emptyAction }: GameGridProps) {
     return (
       <div className="grid grid-cols-3 gap-4 2xl:grid-cols-4">
         {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="glass-panel overflow-hidden rounded-lg">
-            <Skeleton className="h-48 rounded-none" />
-            <div className="space-y-3 p-4">
+          <div key={index} className="overflow-hidden rounded-lg bg-[var(--panel-bg)]">
+            <Skeleton className="aspect-video w-full rounded-none" />
+            <div className="space-y-3 p-3.5">
               <Skeleton className="h-5 w-2/3" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-5/6" />
-              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-3 w-2/5" />
+              <Skeleton className="h-8 w-full" />
             </div>
           </div>
         ))}
@@ -36,7 +35,7 @@ export function GameGrid({ games, isLoading, emptyAction }: GameGridProps) {
       <EmptyState
         icon={Gamepad2}
         title="Nenhum jogo encontrado"
-        description="Adicione experiencias por placeId para montar seu deck local."
+        description="Adicione experiências por Place ID para montar seu Deck"
         action={emptyAction}
       />
     );

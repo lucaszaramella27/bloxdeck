@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from uuid import uuid4
 
 import httpx
 
-CACHE_TTL = timedelta(seconds=30)
-SEARCH_CACHE_TTL = timedelta(seconds=15)
+CACHE_TTL = timedelta(seconds=90)
+SEARCH_CACHE_TTL = timedelta(minutes=3)
+ENRICH_CACHE_TTL = timedelta(minutes=10)
+DISCOVER_ROTATION_SECONDS = 5 * 60 * 60
+DISCOVER_PINNED_RATIO = 5
+DISCOVER_MAX_PINNED_RESULTS = 6
 REQUEST_TIMEOUT = 8.0
+ROBLOX_RATE_LIMIT_MESSAGE = "Roblox limitou as requisições por alguns instantes. Mostrando dados parciais."
 
 
 @dataclass
@@ -81,19 +88,76 @@ class SearchCacheEntry:
     value: dict[str, Any]
 
 
+@dataclass
+class GenericCacheEntry:
+    expires_at: datetime
+    value: Any
+
+
+class RobloxRateLimitError(Exception):
+    pass
+
+
 snapshot_cache: dict[str, CacheEntry] = {}
 search_cache: dict[str, SearchCacheEntry] = {}
+details_cache: dict[int, GenericCacheEntry] = {}
+images_cache: dict[int, GenericCacheEntry] = {}
+
+
+def is_trusted_roblox_image_url(value: str | None) -> bool:
+    if not value:
+        return False
+
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return False
+
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme == "https" and (host == "rbxcdn.com" or host.endswith(".rbxcdn.com"))
+
+
+def completed_thumbnail_url(thumbnails: list[dict[str, Any]]) -> str | None:
+    for thumbnail in thumbnails:
+        image_url = thumbnail.get("imageUrl")
+        state = str(thumbnail.get("state") or "").lower()
+
+        if state == "completed" and isinstance(image_url, str) and is_trusted_roblox_image_url(image_url):
+            return image_url
+
+    return None
 
 
 def chunk(items: list[int], size: int) -> list[list[int]]:
     return [items[index : index + size] for index in range(0, len(items), size)]
 
 
+def retry_after_seconds(value: str | None, fallback: float) -> float:
+    if not value:
+        return fallback
+
+    try:
+        return max(0.0, min(float(value), 2.0))
+    except ValueError:
+        return fallback
+
+
 async def fetch_json(url: str) -> Any:
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, headers={"User-Agent": "BloxDeck/0.1"}) as client:
-        response = await client.get(url, headers={"Accept": "application/json"})
-        response.raise_for_status()
-        return response.json()
+        for attempt in range(3):
+            response = await client.get(url, headers={"Accept": "application/json"})
+
+            if response.status_code == 429:
+                if attempt < 2:
+                    await asyncio.sleep(retry_after_seconds(response.headers.get("Retry-After"), 0.45 + attempt * 0.35))
+                    continue
+
+                raise RobloxRateLimitError(url)
+
+            response.raise_for_status()
+            return response.json()
+
+    raise RobloxRateLimitError(url)
 
 
 async def get_universe_id_for_place(place_id: str) -> int:
@@ -107,38 +171,76 @@ async def get_universe_id_for_place(place_id: str) -> int:
 
 
 async def get_details_by_universe_id(universe_ids: list[int]) -> dict[int, dict[str, Any]]:
+    now = datetime.now(timezone.utc)
     details: dict[int, dict[str, Any]] = {}
+    missing: list[int] = []
 
-    for batch in chunk(universe_ids, 50):
+    for universe_id in dict.fromkeys(universe_ids):
+        cached = details_cache.get(universe_id)
+
+        if cached and cached.expires_at > now:
+            details[universe_id] = cached.value
+        else:
+            missing.append(universe_id)
+
+    for batch in chunk(missing, 25):
         params = httpx.QueryParams({"universeIds": ",".join(str(item) for item in batch)})
-        data = await fetch_json(f"https://games.roblox.com/v1/games?{params}")
+
+        try:
+            data = await fetch_json(f"https://games.roblox.com/v1/games?{params}")
+        except RobloxRateLimitError:
+            break
 
         for item in data.get("data", []):
-            details[int(item["id"])] = item
+            universe_id = int(item["id"])
+            details[universe_id] = item
+            details_cache[universe_id] = GenericCacheEntry(
+                expires_at=datetime.now(timezone.utc) + ENRICH_CACHE_TTL,
+                value=item,
+            )
 
     return details
 
 
 async def get_images_by_universe_id(universe_ids: list[int]) -> dict[int, str | None]:
+    now = datetime.now(timezone.utc)
     images: dict[int, str | None] = {}
+    missing: list[int] = []
 
-    for batch in chunk(universe_ids, 50):
+    for universe_id in dict.fromkeys(universe_ids):
+        cached = images_cache.get(universe_id)
+
+        if cached and cached.expires_at > now:
+            images[universe_id] = cached.value
+        else:
+            missing.append(universe_id)
+
+    for batch in chunk(missing, 25):
         params = httpx.QueryParams(
             {
                 "universeIds": ",".join(str(item) for item in batch),
                 "countPerUniverse": "1",
-                "defaults": "true",
+                "defaults": "false",
                 "size": "768x432",
                 "format": "Webp",
                 "isCircular": "false",
             }
         )
-        data = await fetch_json(f"https://thumbnails.roblox.com/v1/games/multiget/thumbnails?{params}")
+
+        try:
+            data = await fetch_json(f"https://thumbnails.roblox.com/v1/games/multiget/thumbnails?{params}")
+        except RobloxRateLimitError:
+            break
 
         for item in data.get("data", []):
             thumbnails = item.get("thumbnails") or []
-            image_url = next((thumbnail.get("imageUrl") for thumbnail in thumbnails if thumbnail.get("imageUrl")), None)
-            images[int(item["universeId"])] = image_url
+            image_url = completed_thumbnail_url(thumbnails)
+            universe_id = int(item["universeId"])
+            images[universe_id] = image_url
+            images_cache[universe_id] = GenericCacheEntry(
+                expires_at=datetime.now(timezone.utc) + ENRICH_CACHE_TTL,
+                value=image_url,
+            )
 
     return images
 
@@ -151,7 +253,7 @@ def to_snapshot(place_id: str, detail: dict[str, Any], image_url: str | None) ->
         placeId=place_id,
         universeId=str(detail["id"]),
         name=(detail.get("name") or f"Place {place_id}").strip(),
-        description=(detail.get("description") or "Sem descricao publica no Roblox.").strip(),
+        description=(detail.get("description") or "Sem descrição pública no Roblox.").strip(),
         imageUrl=image_url,
         creatorName=creator.get("name"),
         creatorType=creator.get("type"),
@@ -285,13 +387,35 @@ async def enrich_experience_items(items: list[dict[str, Any]], source: str) -> l
     return results
 
 
-def cached_search_response(cache_key: str) -> dict[str, Any] | None:
+def cached_search_response(cache_key: str, *, allow_stale: bool = False) -> dict[str, Any] | None:
     cached = search_cache.get(cache_key)
 
-    if cached and cached.expires_at > datetime.now(timezone.utc):
+    if cached and (allow_stale or cached.expires_at > datetime.now(timezone.utc)):
         return cached.value
 
     return None
+
+
+def rate_limited_response(cache_key: str, *, source: str, **extra: Any) -> dict[str, Any]:
+    cached = cached_search_response(cache_key, allow_stale=True)
+
+    if cached is not None:
+        return {
+            **cached,
+            "rateLimited": True,
+            "message": ROBLOX_RATE_LIMIT_MESSAGE,
+            "syncedAt": cached.get("syncedAt") or datetime.now(timezone.utc).isoformat(),
+        }
+
+    return {
+        **extra,
+        "results": [],
+        "nextPageToken": None,
+        "syncedAt": datetime.now(timezone.utc).isoformat(),
+        "source": source,
+        "rateLimited": True,
+        "message": ROBLOX_RATE_LIMIT_MESSAGE,
+    }
 
 
 def set_search_cache(cache_key: str, value: dict[str, Any]) -> dict[str, Any]:
@@ -300,6 +424,62 @@ def set_search_cache(cache_key: str, value: dict[str, Any]) -> dict[str, Any]:
         value=value,
     )
     return value
+
+
+def get_discover_rotation(now: datetime | None = None) -> tuple[int, datetime]:
+    current = now or datetime.now(timezone.utc)
+
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+
+    rotation_id = int(current.timestamp()) // DISCOVER_ROTATION_SECONDS
+    rotates_at = datetime.fromtimestamp(
+        (rotation_id + 1) * DISCOVER_ROTATION_SECONDS,
+        tz=timezone.utc,
+    )
+    return rotation_id, rotates_at
+
+
+def rotate_discover_items(
+    items: list[dict[str, Any]],
+    *,
+    sort_id: str,
+    limit: int,
+    rotation_id: int,
+) -> list[dict[str, Any]]:
+    result_limit = min(max(limit, 0), len(items))
+
+    if result_limit == 0:
+        return []
+
+    pinned_count = min(
+        DISCOVER_MAX_PINNED_RESULTS,
+        max(1, result_limit // DISCOVER_PINNED_RATIO),
+        result_limit,
+    )
+    pinned = items[:pinned_count]
+    candidates = items[pinned_count:]
+    rotating_count = result_limit - pinned_count
+
+    if rotating_count <= 0 or rotating_count >= len(candidates):
+        return items[:result_limit]
+
+    seed = int.from_bytes(
+        hashlib.sha256(sort_id.encode("utf-8")).digest()[:8],
+        byteorder="big",
+    )
+    step = max(1, rotating_count - 1)
+    offset = (seed + rotation_id * step) % len(candidates)
+    selected_indexes = {
+        (offset + index) % len(candidates)
+        for index in range(rotating_count)
+    }
+    rotating = [
+        item
+        for index, item in enumerate(candidates)
+        if index in selected_indexes
+    ]
+    return [*pinned, *rotating]
 
 
 async def search_roblox_experiences(query: str, *, cursor: str | None = None, limit: int = 40) -> dict[str, Any]:
@@ -328,7 +508,11 @@ async def search_roblox_experiences(query: str, *, cursor: str | None = None, li
     if cursor:
         params["pageToken"] = cursor
 
-    data = await fetch_json(f"https://apis.roblox.com/search-api/omni-search?{httpx.QueryParams(params)}")
+    try:
+        data = await fetch_json(f"https://apis.roblox.com/search-api/omni-search?{httpx.QueryParams(params)}")
+    except RobloxRateLimitError:
+        return rate_limited_response(cache_key, source="search", query=normalized_query)
+
     items: list[dict[str, Any]] = []
 
     for group in data.get("searchResults", []):
@@ -351,7 +535,8 @@ async def search_roblox_experiences(query: str, *, cursor: str | None = None, li
 
 
 async def get_roblox_discover(sort_id: str = "top-playing-now", *, limit: int = 50) -> dict[str, Any]:
-    cache_key = f"discover:{sort_id}:{limit}"
+    rotation_id, rotates_at = get_discover_rotation()
+    cache_key = f"discover:{sort_id}:{limit}:{rotation_id}"
     cached = cached_search_response(cache_key)
 
     if cached is not None:
@@ -365,8 +550,38 @@ async def get_roblox_discover(sort_id: str = "top-playing-now", *, limit: int = 
             "country": "all",
         }
     )
-    data = await fetch_json(f"https://apis.roblox.com/explore-api/v1/get-sort-content?{params}")
-    results = await enrich_experience_items((data.get("games") or [])[:limit], "discover")
+    try:
+        data = await fetch_json(f"https://apis.roblox.com/explore-api/v1/get-sort-content?{params}")
+    except RobloxRateLimitError:
+        previous_cache_key = f"discover:{sort_id}:{limit}:{rotation_id - 1}"
+        previous = cached_search_response(previous_cache_key, allow_stale=True)
+
+        if previous is not None:
+            return {
+                **previous,
+                "rotationId": rotation_id,
+                "rotatesAt": rotates_at.isoformat(),
+                "rateLimited": True,
+                "message": ROBLOX_RATE_LIMIT_MESSAGE,
+            }
+
+        return rate_limited_response(
+            cache_key,
+            source="discover",
+            sortId=sort_id,
+            sortDisplayName=sort_id,
+            subtitle=None,
+            rotationId=rotation_id,
+            rotatesAt=rotates_at.isoformat(),
+        )
+
+    selected_games = rotate_discover_items(
+        data.get("games") or [],
+        sort_id=sort_id,
+        limit=limit,
+        rotation_id=rotation_id,
+    )
+    results = await enrich_experience_items(selected_games, "discover")
 
     return set_search_cache(
         cache_key,
@@ -378,6 +593,8 @@ async def get_roblox_discover(sort_id: str = "top-playing-now", *, limit: int = 
             "nextPageToken": data.get("nextPageToken"),
             "syncedAt": datetime.now(timezone.utc).isoformat(),
             "source": "discover",
+            "rotationId": rotation_id,
+            "rotatesAt": rotates_at.isoformat(),
         },
     )
 
@@ -394,10 +611,20 @@ async def get_roblox_autocomplete(query: str) -> dict[str, Any]:
     if cached is not None:
         return cached
 
-    data = await fetch_json(
-        "https://apis.roblox.com/games-autocomplete/v1/get-suggestion/"
-        f"{quote(normalized_query, safe='')}"
-    )
+    try:
+        data = await fetch_json(
+            "https://apis.roblox.com/games-autocomplete/v1/get-suggestion/"
+            f"{quote(normalized_query, safe='')}"
+        )
+    except RobloxRateLimitError:
+        cached = cached_search_response(cache_key, allow_stale=True)
+        return cached or {
+            "query": normalized_query,
+            "suggestions": [],
+            "syncedAt": datetime.now(timezone.utc).isoformat(),
+            "rateLimited": True,
+            "message": ROBLOX_RATE_LIMIT_MESSAGE,
+        }
     suggestions = [
         {
             "query": item.get("searchQuery"),
@@ -441,8 +668,12 @@ async def get_roblox_snapshots_for_places(place_ids: list[str]) -> dict[str, Rob
             universe_by_place_id.pop(place_id, None)
 
     universe_ids = list(dict.fromkeys(universe_by_place_id.values()))
-    details_by_universe_id = await get_details_by_universe_id(universe_ids) if universe_ids else {}
-    images_by_universe_id = await get_images_by_universe_id(universe_ids) if universe_ids else {}
+    try:
+        details_by_universe_id = await get_details_by_universe_id(universe_ids) if universe_ids else {}
+        images_by_universe_id = await get_images_by_universe_id(universe_ids) if universe_ids else {}
+    except RobloxRateLimitError:
+        details_by_universe_id = {}
+        images_by_universe_id = {}
 
     for place_id in missing:
         universe_id = universe_by_place_id.get(place_id)

@@ -8,7 +8,7 @@ export function NotFoundPage() {
   return (
     <EmptyState
       icon={Compass}
-      title="Rota nao encontrada"
+      title="Rota não encontrada"
       action={
         <Button asChild>
           <Link to="/">Dashboard</Link>
@@ -17,4 +17,3 @@ export function NotFoundPage() {
     />
   );
 }
-
